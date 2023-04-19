@@ -1,14 +1,25 @@
-function update_stationcoor!(data::PreInverse)
-    for s = data.stations
-        (dist, az, _) = SGD.distance(data.event.lat, data.event.lon, s.lat, s.lon)
-        (_, baz, _) = SGD.distance(s.lat, s.lon, data.event.lat, data.event.lon)
-        s.dist = dist
+function update_stationcoor!(stations::Vector{Station}, event::Event)
+    for s = stations
+        (dist, az, _) = SGD.distance(event.lat, event.lon, s.lat, s.lon)
+        (_, baz, _) = SGD.distance(s.lat, s.lon, event.lat, event.lon)
+        s.dist = _Kilometer(dist)
         s.az = az
-        s.azx = dist * cosd(az)
-        s.azy = dist * sind(az)
+        s.azx = _Kilometer(dist * cosd(az))
+        s.azy = _Kilometer(dist * sind(az))
         s.baz = baz
-        s.bazx = dist * cosd(baz)
-        s.bazy = dist * sind(baz)
+        s.bazx = _Kilometer(dist * cosd(baz))
+        s.bazy = _Kilometer(dist * sind(baz))
     end
+    return nothing
+end
+
+update_stationcoor!(data::InverseSetting) = update_stationcoor!(data.stations, data.event)
+
+function pushphase!(channels::Vector{RecordChannel}, phases::Vector{Phase}, 
+    ichannel::Integer, ptype::AbstractString)
+    iphase = length(phases) + 1
+    c = channels[ichannel]
+    push!(c.idphase, iphase)
+    push!(phases, Phase(ptype; idchannel=ichannel))
     return nothing
 end

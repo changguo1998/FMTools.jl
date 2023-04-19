@@ -10,6 +10,7 @@ SGD = SeisTools.Geodesy
 include("macros.jl")
 include("types.jl")
 include("basicfunction.jl")
+include("phasereport.jl")
 include("io.jl")
 include("calc.jl")
 

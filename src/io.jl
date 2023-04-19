@@ -1,18 +1,54 @@
 # = = = = = = = = = =
-# = Record IO
+# = Record
 # = = = = = = = = = =
 
+"""
+```
+Event(filepath) -> Event
+```
+
+read *TOML* format event info. Available fields are:
+
+- time/origintime
+- lon/longitude
+- lat/latitude
+- dep/depth(in kilometer)
+- mag/magnitude
+- t0/risetime(in second)
+- tag String identifier
+"""
 function Event(filepath::AbstractString)
     t = TOML.parsefile(filepath)
-    if "tag" in keys(t)
-        return Event(t["origintime"], t["lat"], t["lon"], t["depth"], t["mag"], t["t0"]; tag=t["tag"])
-    else
-        return Event(t["origintime"], t["lat"], t["lon"], t["depth"], t["mag"], t["t0"])
+    e = Event(_LongAgo, 0.0, 0.0, _LengthPrecision(0))
+    ks = keys(t)
+    klist = ("time", "origintime", "lat", "latitude", "lon", "longitude", 
+        "dep", "depth", "mag", "magnitude", "t0", "risetime", "tag")
+    flist = (:time, :time, :lat, :lat, :lon, :lon, :dep, :dep, :mag, :mag, 
+        :t0, :t0, :tag)
+    funcl = (identity, identity, identity, identity, identity, identity, 
+        _Kilometer,  _Kilometer, identity, identity, _Second, _Second, 
+        identity)
+    for i = eachindex(klist)
+        if klist[i] in ks
+            setfield!(e, flist[i], funcl[i](t[klist[i]]))
+        end
     end
+    if !("tag" in ks)
+        e.tag = @sprintf("%04d%02d%02d%02d%02d", (e.time .|>
+            [year, month, day, hour, minute])...)
+    end
+    return e
 end
 
 _findfirst_station(stag::String, lst::Vector{String}) = findfirst(==(stag), lst)
 
+"""
+```
+readStationChannelInfo(datadir) -> (stations, channels)
+```
+
+read files' header of data file ends with `SAC` in `datadir`, return info vector
+"""
 function readStationChannelInfo(datadir::AbstractString)
     fs = filter(endswith("SAC"), readdir(datadir))
     stationtags = String[]
@@ -56,10 +92,17 @@ function _read_channel_record!(c::RecordChannel)
     return nothing
 end
 
+"""
+```
+readChannelRecords!(::Vector{RecordChannel})
+```
+
+read data from file according to the info in `RecordChannel`
+"""
 readChannelRecords!(channels::Vector{RecordChannel}) =
     foreach(_read_channel_record!, channels)
 
 
 # = = = = = = = = = =
-# = Green IO
+# = Green's function
 # = = = = = = = = = =

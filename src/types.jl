@@ -1,3 +1,5 @@
+import Base: +, -, *, /, promote_rule
+
 # * global variable
 _TimePrecision = Millisecond
 _TimeSecondRatio = _TimePrecision(Second(1))/_TimePrecision(1)
@@ -11,7 +13,9 @@ end
 
 _LongAgo = DateTime(1800)
 
-# * types
+# = = = = = = = = = = = = = = =
+# = basic types
+# = = = = = = = = = = = = = = =
 
 """
 ```
@@ -101,9 +105,54 @@ function incaz(dirc::Direction3D)
     return (inc, az)
 end
 
-# = = = = =
+abstract type Length <: Any end
+
+_LENGTH_TYPE_LIST = (:Kilometer, :Meter, :Decimeter, :Centimeter, :Millimeter, :Micrometer, :Nanometer) 
+
+for sym in _LENGTH_TYPE_LIST
+    @eval struct $sym <: Length
+        value::Int
+    end
+    @eval begin
+        +(a::$sym, b::$sym) = $sym(a.value + b.value)
+        -(a::$sym, b::$sym) = $sym(a.value - b.value)
+        *(a::$sym, b::Integer) = $sym(a.value * b)
+        *(a::Integer, b::$sym) = $sym(b.value * a)
+        /(a::$sym, b::$sym) = a.value / b.value
+    end
+end
+
+_LENGTH_UNIT_POWER = (3, 0, -1, -2, -3, -6, -9)
+
+for i = eachindex(_LENGTH_TYPE_LIST), j = eachindex(_LENGTH_TYPE_LIST)
+    if j >= i
+        continue
+    end
+    @eval begin
+        promote_rule(::Type{$(_LENGTH_TYPE_LIST[i])}, ::Type{$(_LENGTH_TYPE_LIST[j])}) = $(_LENGTH_TYPE_LIST[i])
+        promote_rule(::Type{$(_LENGTH_TYPE_LIST[j])}, ::Type{$(_LENGTH_TYPE_LIST[i])}) = $(_LENGTH_TYPE_LIST[i])
+        $(_LENGTH_TYPE_LIST[i])(t::$(_LENGTH_TYPE_LIST[j])) = 
+            $(_LENGTH_TYPE_LIST[i])(t.value*10^($(_LENGTH_UNIT_POWER[j]-_LENGTH_UNIT_POWER[i])))
+    end
+end
+
+
+_LengthPrecision = Millimeter
+_LengthKilometerRatio = _LengthPrecision(Kilometer(1))/_LengthPrecision(1)
+_LengthMeterRatio = _LengthPrecision(Meter(1))/_LengthPrecision(1)
+
+function setlengthprecision!(T::Type)
+    @must T <: Length
+    global _LengthPrecision = T
+    global _LengthKilometerRatio = _LengthPrecision(Kilometer(1))/_LengthPrecision(1)
+    global _LengthMeterRatio = _LengthPrecision(Meter(1))/_LengthPrecision(1)
+    return nothing
+end
+
+
+# = = = = = = = = = = = = = = =
 # = types of input data
-# = = = = =
+# = = = = = = = = = = = = = = =
 abstract type PreprocessedData <: Any end
 
 """
@@ -128,7 +177,6 @@ mutable struct Phase <: PreprocessedData
     # - cross ref
     idobjects::Vector{Int}
     idchannel::Int
-    idstation::Int
 end
 
 """
@@ -141,12 +189,12 @@ construct Phase type
 - at DateTime
 - tt TimePeriod or Real. when tt is Real, it will be treated as second
 """
-function Phase(ptype::AbstractString, at::DateTime, tt::Union{TimePeriod,Real}=_TimePrecision(0);
-    idobjects::AbstractVector{<:Integer}=Int[], idchannel::Integer=0, idstation::Integer=0)
+function Phase(ptype::AbstractString, at::DateTime=_LongAgo, tt::Union{TimePeriod,Real}=_TimePrecision(0);
+    idobjects::AbstractVector{<:Integer}=Int[], idchannel::Integer=0)
     if typeof(tt) <: Real
         tt = _Second(tt)
     end
-    return Phase(String(ptype), at, tt, Int.(idobjects), Int(idchannel), Int(idstation))
+    return Phase(String(ptype), at, tt, Int.(idobjects), Int(idchannel))
 end
 
 """
@@ -247,15 +295,15 @@ mutable struct Station <: PreprocessedData
     station::String
     lat::Float64
     lon::Float64
-    el::Float64
+    el::Length
     # - auxiliary info
-    dist::Float64
+    dist::Length
     az::Float64
-    azx::Float64
-    azy::Float64
+    azx::Length
+    azy::Length
     baz::Float64
-    bazx::Float64
-    bazy::Float64
+    bazx::Length
+    bazy::Length
     # - cross ref
     idchannel::Vector{Int}
 end
@@ -267,15 +315,15 @@ mutable struct Station <: PreprocessedData
     station::String
     lat::Float64
     lon::Float64
-    el::Float64
+    el::Length
     # - auxiliary info
-    dist::Float64
+    dist::Length
     az::Float64
-    azx::Float64
-    azy::Float64
+    azx::Length
+    azy::Length
     baz::Float64
-    bazx::Float64
-    bazy::Float64
+    bazx::Length
+    bazy::Length
     # - cross ref
     idchannel::Vector{Int}
 end
@@ -292,18 +340,18 @@ function Station(network::AbstractString, station::AbstractString, lat::Real,
     baz::Real=0.0, bazx::Real=0.0, bazy::Real=0.0,
     idchannel::AbstractVector{<:Integer}=Int[])
     return Station(String(network), String(station), Float64(lat), Float64(lon),
-        Float64(el), Float64(dist), Float64(az), Float64(azx), Float64(azy),
-        Float64(baz), Float64(bazx), Float64(bazy), Int.(idchannel))
+        _Meter(el), _Kilometer(dist), Float64(az), _Kilometer(azx), _Kilometer(azy),
+        Float64(baz), _Kilometer(bazx), _Kilometer(bazy), Int.(idchannel))
 end
 
 """
 ```
 mutable struct Event <: PreprocessedData
     # - event info
-    origintime::DateTime
+    time::DateTime
     lat::Float64
     lon::Float64
-    depth::Float64
+    dep::Length
     mag::Float64
     t0::TimePeriod
 end
@@ -311,10 +359,10 @@ end
 """
 mutable struct Event <: PreprocessedData
     # - event info
-    origintime::DateTime
+    time::DateTime
     lat::Float64
     lon::Float64
-    depth::Float64
+    dep::Length
     mag::Float64
     t0::TimePeriod
     tag::String
@@ -322,18 +370,29 @@ end
 
 """
 ```
-Event(orgintime::DateTime, lat, lon, depth, mag, t0) -> Event
+Event(time::DateTime, lat, lon, dep, mag, t0) -> Event
 ```
 """
-function Event(origintime::DateTime, lat::Real, lon::Real, depth::Real, mag::Real,
-    t0::Union{TimePeriod,Real}; tag::AbstractString="")
+function Event(time::DateTime, lat::Real, lon::Real, dep::Union{Real,Length}; mag::Real=0.0,
+    t0::Union{TimePeriod,Real}=_TimePrecision(0), tag::AbstractString="")
     if typeof(t0) <: Real
         t0 = _Second(t0)
     end
-    if isempty(tag)
-        tag = @sprintf("%04d%02d%02d%02d%02d", (origintime .|> [year, month, day, hour, minute])...)
+    if typeof(dep) <: Real
+        dep = _Kilometer(dep)
     end
-    return Event(origintime, Float64(lat), Float64(lon), Float64(depth), Float64(mag), t0, String(tag))
+    if isempty(tag)
+        tag = @sprintf("%04d%02d%02d%02d%02d", (time .|> [year, month, day, hour, minute])...)
+    end
+    return Event(time, Float64(lat), Float64(lon), dep, Float64(mag), t0, String(tag))
+end
+
+struct AlgorithmSetting <: PreprocessedData
+    greenbuffer::Bool
+end
+
+function AlgorithmSetting(; greenbuffer::Bool=true)
+    return AlgorithmSetting(greenbuffer)
 end
 
 """
@@ -347,9 +406,11 @@ end
 ```
 """
 mutable struct InverseSetting <: Any
+    setting::AlgorithmSetting
     event::Event
     stations::Vector{Station}
     channels::Vector{RecordChannel}
     phases::Vector{Phase}
     objects::Vector{PreprocessedData}
 end
+
