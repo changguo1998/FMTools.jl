@@ -24,9 +24,10 @@ function Event(filepath::AbstractString)
     klist = ("time", "origintime", "lat", "latitude", "lon", "longitude", 
         "dep", "depth", "mag", "magnitude", "t0", "risetime", "tag")
     flist = (:time, :time, :lat, :lat, :lon, :lon, :dep, :dep, :mag, :mag, 
-        :t0, :t0, :tag)
+        :stf, :stf, :tag)
     funcl = (identity, identity, identity, identity, identity, identity, 
-        _Kilometer,  _Kilometer, identity, identity, _Second, _Second, 
+        _Kilometer,  _Kilometer, identity, identity, 
+        _t->DSmoothRampSTF(_t, 3*_t), _t->DSmoothRampSTF(_t, 3*_t), 
         identity)
     for i = eachindex(klist)
         if klist[i] in ks

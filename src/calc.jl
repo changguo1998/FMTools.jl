@@ -13,13 +13,5 @@ function update_stationcoor!(stations::Vector{Station}, event::Event)
     return nothing
 end
 
-update_stationcoor!(data::InverseSetting) = update_stationcoor!(data.stations, data.event)
-
-function pushphase!(channels::Vector{RecordChannel}, phases::Vector{Phase}, 
-    ichannel::Integer, ptype::AbstractString)
-    iphase = length(phases) + 1
-    c = channels[ichannel]
-    push!(c.idphase, iphase)
-    push!(phases, Phase(ptype; idchannel=ichannel))
-    return nothing
-end
+update_stationcoor!(data::InverseSetting) = 
+    update_stationcoor!(data.stations, data.event)

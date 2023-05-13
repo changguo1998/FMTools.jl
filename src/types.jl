@@ -13,6 +13,8 @@ end
 
 _LongAgo = DateTime(1800)
 
+_Second(x::Real) = _TimePrecision(round(Int, x * _TimeSecondRatio))
+
 # = = = = = = = = = = = = = = =
 # = basic types
 # = = = = = = = = = = = = = = =
@@ -136,7 +138,6 @@ for i = eachindex(_LENGTH_TYPE_LIST), j = eachindex(_LENGTH_TYPE_LIST)
     end
 end
 
-
 _LengthPrecision = Millimeter
 _LengthKilometerRatio = _LengthPrecision(Kilometer(1))/_LengthPrecision(1)
 _LengthMeterRatio = _LengthPrecision(Meter(1))/_LengthPrecision(1)
@@ -149,11 +150,57 @@ function setlengthprecision!(T::Type)
     return nothing
 end
 
+_Kilometer(x::Real) = _LengthPrecision(round(Int, x * _LengthKilometerRatio))
+
+_Meter(x::Real) = _LengthPrecision(round(Int, x * _LengthMeterRatio))
+
+
+# = = = = = = = = = = = = = = =
+# = SourceTimeFunction
+# = = = = = = = = = = = = = = =
+
+abstract type SourceTimeFunction <: Any end
+
+mutable struct GaussSTF <: SourceTimeFunction
+    t0::Float64
+    tshift::Float64
+end
+
+GaussSTF(t0::Real, tshift::Real) = GaussSTF(Float64(t0), Float64(tshift))
+
+(stf::GaussSTF)(t::Real) = exp(-( (t - stf.tshift) / stf.t0)^2)
+
+
+mutable struct SmoothRampSTF <: SourceTimeFunction
+    t0::Float64
+    tshift::Float64
+end
+
+SmoothRampSTF(t0::Real, tshift::Real=-3*t0) = SmoothRampSTF(Float64(t0), Float64(tshift))
+
+(stf::SmoothRampSTF)(t::Real) = (1 + tanh( (t - stf.tshift) / stf.t0)) * 0.5
+
+mutable struct DSmoothRampSTF <: SourceTimeFunction
+    t0::Float64
+    tshift::Float64
+end
+
+DSmoothRampSTF(t0::Real, tshift::Real=-3*t0) = SmoothRampSTF(Float64(t0), Float64(tshift))
+
+(stf::DSmoothRampSTF)(t::Real) = 1 / cosh((t - stf.tshift) / stf.t0)^2
+
+
+# = = = = = = = = = = = = = = =
+# = Searching method
+
+include("search/searchingMethod.jl")
 
 # = = = = = = = = = = = = = = =
 # = types of input data
 # = = = = = = = = = = = = = = =
 abstract type PreprocessedData <: Any end
+
+include("misfit/misfits.jl")
 
 """
 ```
@@ -331,7 +378,7 @@ end
 """
 ```
 Station(network, station, lat, lon, el;
-    dist, az, azx, azy, baz, bazx, bazy,idchannel) -> Station
+    dist, az, azx, azy, baz, bazx, bazy, idchannel) -> Station
 ```
 """
 function Station(network::AbstractString, station::AbstractString, lat::Real,
@@ -364,19 +411,19 @@ mutable struct Event <: PreprocessedData
     lon::Float64
     dep::Length
     mag::Float64
-    t0::TimePeriod
+    stf::SourceTimeFunction
     tag::String
 end
 
 """
 ```
-Event(time::DateTime, lat, lon, dep, mag, t0) -> Event
+Event(time::DateTime, lat, lon, dep, mag, stf, tag) -> Event
 ```
 """
 function Event(time::DateTime, lat::Real, lon::Real, dep::Union{Real,Length}; mag::Real=0.0,
-    t0::Union{TimePeriod,Real}=_TimePrecision(0), tag::AbstractString="")
-    if typeof(t0) <: Real
-        t0 = _Second(t0)
+    stf::Union{SourceTimeFunction,Real}=0.0, tag::AbstractString="")
+    if typeof(stf) <: Real
+        stf = DSmoothRampSTF(stf, 3*stf)
     end
     if typeof(dep) <: Real
         dep = _Kilometer(dep)
@@ -384,7 +431,7 @@ function Event(time::DateTime, lat::Real, lon::Real, dep::Union{Real,Length}; ma
     if isempty(tag)
         tag = @sprintf("%04d%02d%02d%02d%02d", (time .|> [year, month, day, hour, minute])...)
     end
-    return Event(time, Float64(lat), Float64(lon), dep, Float64(mag), t0, String(tag))
+    return Event(time, Float64(lat), Float64(lon), dep, Float64(mag), stf, String(tag))
 end
 
 struct AlgorithmSetting <: PreprocessedData
@@ -414,3 +461,60 @@ mutable struct InverseSetting <: Any
     objects::Vector{PreprocessedData}
 end
 
+# = = = = = = = = = = = = =
+# = = = = = = = = = = = = =
+# = = = = = = = = = = = = =
+# = = = = = = = = = = = = =
+
+"""
+```
+pushphase!(channels, ichannel, phases, ptype)
+```
+"""
+function pushphase!(channels::Vector{RecordChannel}, ichannel::Integer,
+    phases::Vector{Phase}, ptype::AbstractString)
+    iphase = length(phases) + 1
+    c = channels[ichannel]
+    push!(c.idphase, iphase)
+    push!(phases, Phase(ptype; idchannel=ichannel))
+    return nothing
+end
+
+
+"""
+```
+selectphase!(channels, phases, selectflag::Vector{Bool}) -> newphases
+```
+
+select `phases` and update id in `channels` according to `selectflag`
+"""
+function selectphase!(channels::Vector{RecordChannel}, phases::Vector{Phase},
+    selectflag::Vector{Bool})
+    @must length(phases) == length(selectflag)
+    newphases = phases[selectflag]
+    idtable_old2new = zeros(Int, length(phases))
+    for i = eachindex(phases), j = eachindex(newphases)
+        if phases[i] == newphases[j]
+            idtable_old2new[i] = j
+        end
+    end
+    for c = channels
+        c.idphase = idtable_old2new[c.idphase]
+        deleteat!(c.idphase, iszero.(c.idphase))
+    end
+    return newphases
+end
+
+"""
+```
+selectphase!(f, channels, phases) -> newphases
+```
+
+select `phases` and update id in `channels` according to function `f`,
+function `f` take `Phase` as input and return `Bool` type
+"""
+function selectphase!(f::Function, channels::Vector{RecordChannel},
+    phases::Vector{Phase})
+    flag = map(f, phases)
+    return selectphase!(channels, phases, flag)
+end
