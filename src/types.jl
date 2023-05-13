@@ -154,53 +154,15 @@ _Kilometer(x::Real) = _LengthPrecision(round(Int, x * _LengthKilometerRatio))
 
 _Meter(x::Real) = _LengthPrecision(round(Int, x * _LengthMeterRatio))
 
-
 # = = = = = = = = = = = = = = =
-# = SourceTimeFunction
+# = Searching Method
 # = = = = = = = = = = = = = = =
-
-abstract type SourceTimeFunction <: Any end
-
-mutable struct GaussSTF <: SourceTimeFunction
-    t0::Float64
-    tshift::Float64
-end
-
-GaussSTF(t0::Real, tshift::Real) = GaussSTF(Float64(t0), Float64(tshift))
-
-(stf::GaussSTF)(t::Real) = exp(-( (t - stf.tshift) / stf.t0)^2)
-
-
-mutable struct SmoothRampSTF <: SourceTimeFunction
-    t0::Float64
-    tshift::Float64
-end
-
-SmoothRampSTF(t0::Real, tshift::Real=-3*t0) = SmoothRampSTF(Float64(t0), Float64(tshift))
-
-(stf::SmoothRampSTF)(t::Real) = (1 + tanh( (t - stf.tshift) / stf.t0)) * 0.5
-
-mutable struct DSmoothRampSTF <: SourceTimeFunction
-    t0::Float64
-    tshift::Float64
-end
-
-DSmoothRampSTF(t0::Real, tshift::Real=-3*t0) = SmoothRampSTF(Float64(t0), Float64(tshift))
-
-(stf::DSmoothRampSTF)(t::Real) = 1 / cosh((t - stf.tshift) / stf.t0)^2
-
-
-# = = = = = = = = = = = = = = =
-# = Searching method
-
 include("search/searchingMethod.jl")
 
 # = = = = = = = = = = = = = = =
 # = types of input data
 # = = = = = = = = = = = = = = =
 abstract type PreprocessedData <: Any end
-
-include("misfit/misfits.jl")
 
 """
 ```
@@ -250,7 +212,6 @@ mutable struct RecordChannel <: PreprocessedData
     # - required field
     dircname::String
     filepath::String
-    glibmodel::String
     # - channel info
     direction::Direction3D
     # - record data
@@ -259,6 +220,7 @@ mutable struct RecordChannel <: PreprocessedData
     rdt::TimePeriod
     record::Vector{Float64}
     # - synthetic data
+    glibmodel::String
     glibpath::String
     tlibpath::String
     gbt::TimePeriod
@@ -285,7 +247,6 @@ mutable struct RecordChannel <: PreprocessedData
     glibmodel::String
     glibpath::String
     tlibpath::String
-    gbt::TimePeriod
     gdt::TimePeriod
     greenfun::Matrix{Float64}
     # - cross ref
@@ -295,21 +256,23 @@ end
 
 """
 ```
-RecordChannel(dircname, filepath, glibmodel; direction=nothing, rbt, ret, rdt, record,
-    glibpath, tlibpath, gbt, gdt, greenfun, idphase, idstation) -> RecordChannel
+RecordChannel(dircname, filepath;
+direction, rbt, ret, rdt, record, 
+glibmodel, glibpath, tlibpath, 
+gbt, gdt, greenfun, 
+idphase, idstation) -> RecordChannel
 ```
 """
-function RecordChannel(dircname::Union{AbstractString,AbstractChar}, 
+function RecordChannel(dircname::Union{AbstractString,AbstractChar},
     filepath::AbstractString;
-    direction::Union{Direction3D,Nothing}=nothing, 
+    direction::Union{Direction3D,Nothing}=nothing,
     rbt::DateTime=_LongAgo, ret::DateTime=_LongAgo,
-    rdt::Union{TimePeriod,Real}=_TimePrecision(0), 
-    record::AbstractVector{<:Real}=Float64[], 
-    glibmodel::AbstractString="", glibpath::AbstractString="", 
-    tlibpath::AbstractString="", 
-    gbt::Union{TimePeriod,Real}=_TimePrecision(0),
+    rdt::Union{TimePeriod,Real}=_TimePrecision(0),
+    record::AbstractVector{<:Real}=Float64[],
+    glibmodel::AbstractString="", glibpath::AbstractString="",
+    tlibpath::AbstractString="",
     gdt::Union{TimePeriod,Real}=_TimePrecision(0),
-    greenfun::AbstractMatrix{<:Real}=zeros(Float64,0,6), 
+    greenfun::AbstractMatrix{<:Real}=zeros(Float64,0,6),
     idphase::AbstractVector{<:Integer}=Int[],
     idstation::Integer=0)
     if typeof(dircname) <: AbstractChar
@@ -400,7 +363,8 @@ mutable struct Event <: PreprocessedData
     lon::Float64
     dep::Length
     mag::Float64
-    t0::TimePeriod
+    stf::SourceTimeFunction
+    tag::String
 end
 ```
 """
@@ -434,6 +398,14 @@ function Event(time::DateTime, lat::Real, lon::Real, dep::Union{Real,Length}; ma
     return Event(time, Float64(lat), Float64(lon), dep, Float64(mag), stf, String(tag))
 end
 
+mutable struct DataCollection <: PreprocessedData
+    event::Event
+    stations::Vector{Station}
+    channels::Vector{RecordChannel}
+    phases::Vector{Phase}
+    objects::Vector{PreprocessedData}
+end
+
 struct AlgorithmSetting <: PreprocessedData
     greenbuffer::Bool
 end
@@ -442,24 +414,6 @@ function AlgorithmSetting(; greenbuffer::Bool=true)
     return AlgorithmSetting(greenbuffer)
 end
 
-"""
-```
-mutable struct InverseSetting <: Any
-    event::Event
-    stations::Vector{Station}
-    channels::Vector{RecordChannel}
-    phases::Vector{Phase}
-end
-```
-"""
-mutable struct InverseSetting <: Any
-    setting::AlgorithmSetting
-    event::Event
-    stations::Vector{Station}
-    channels::Vector{RecordChannel}
-    phases::Vector{Phase}
-    objects::Vector{PreprocessedData}
-end
 
 # = = = = = = = = = = = = =
 # = = = = = = = = = = = = =

@@ -32,6 +32,7 @@ macro hadbetter(cond, text="")
     )
 end
 
+#=
 """
 ```
 @debuginfo msg
@@ -55,11 +56,7 @@ function setDEBUG!(flag::Bool)
     global DEBUG = flag
     return nothing
 end
-
-function showdebuginfo()
-    @debuginfo "DEBUG is true"
-    return nothing
-end
+=#
 
 # = = = = = = = = = =
 # = multithreading

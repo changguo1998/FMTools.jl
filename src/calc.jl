@@ -13,5 +13,5 @@ function update_stationcoor!(stations::Vector{Station}, event::Event)
     return nothing
 end
 
-update_stationcoor!(data::InverseSetting) = 
+update_stationcoor!(data::DataCollection) = 
     update_stationcoor!(data.stations, data.event)

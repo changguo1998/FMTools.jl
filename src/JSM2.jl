@@ -7,10 +7,12 @@ SDP = SeisTools.DataProcess
 SSR = SeisTools.Source
 SGD = SeisTools.Geodesy
 
-DEBUG = true
+# DEBUG = true
 
 include("macros.jl")
+include("sourcetimefunction.jl")
 include("types.jl")
+include("misfit/misfits.jl")
 include("phasereport.jl")
 include("io.jl")
 include("calc.jl")
