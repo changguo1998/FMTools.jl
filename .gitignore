@@ -1,3 +1,4 @@
 test/test.jl
 test/pr.txt
 test/eventinfo.toml
+.vscode
