@@ -1,3 +1,3 @@
-# JSM2
+# FMTools
 
-The 2nd version of JuliaSourceMechanism
+Useful data format definations and functions for focal mechanism inversion
