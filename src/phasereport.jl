@@ -1,3 +1,6 @@
+export InfoReport, PhaseReport, phasereport_mergephase, phasereport_parsefile,
+    phasereport_printfile
+
 abstract type InfoReport end
 
 const _phasereport_REF_EVENT = [(1, 2, 's'), (4, 24, 'd'), (26, 33, 'f'), 

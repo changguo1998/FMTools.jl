@@ -1,3 +1,5 @@
+export update_stationcoor!
+
 function update_stationcoor!(stations::Vector{Station}, event::Event)
     for s = stations
         (dist, az, _) = SGD.distance(event.lat, event.lon, s.lat, s.lon)

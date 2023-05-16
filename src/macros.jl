@@ -1,3 +1,5 @@
+export @must, @hadbetter, @balancedthreads
+
 """
 ```
 @must cond [text]
@@ -15,7 +17,6 @@ macro must(cond, text="")
         end
     )
 end
-
 
 """
 ```

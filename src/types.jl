@@ -1,5 +1,7 @@
 import Base: +, -, *, /, promote_rule
 
+export settimeprecision!, _Second, setlengthprecision!, Direction3D, incaz, 
+    Length, Kilometer, Meter, Millimeter, Micrometer, _Kilometer, _Meter
 # * global variable
 _TimePrecision = Millisecond
 _TimeSecondRatio = _TimePrecision(Second(1))/_TimePrecision(1)
@@ -162,6 +164,9 @@ include("search/searchingMethod.jl")
 # = = = = = = = = = = = = = = =
 # = types of input data
 # = = = = = = = = = = = = = = =
+export PreprocessedData, AlgorithmSetting, DataCollection,
+    Event, Station, RecordChannel, Phase
+
 abstract type PreprocessedData <: Any end
 
 """
@@ -256,11 +261,8 @@ end
 
 """
 ```
-RecordChannel(dircname, filepath;
-direction, rbt, ret, rdt, record, 
-glibmodel, glibpath, tlibpath, 
-gbt, gdt, greenfun, 
-idphase, idstation) -> RecordChannel
+RecordChannel(dircname, filepath; direction, rbt, ret, rdt, record, glibmodel, 
+    glibpath, tlibpath, gbt, gdt, greenfun, idphase, idstation) -> RecordChannel
 ```
 """
 function RecordChannel(dircname::Union{AbstractString,AbstractChar},

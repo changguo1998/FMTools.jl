@@ -1,3 +1,5 @@
+export SourceTimeFunction, GaussSTF, SmoothRampSTF, DSmoothRampSTF, ExternalSTF
+
 abstract type SourceTimeFunction <: Any end
 
 # = = = = = = = = = = =
@@ -32,13 +34,13 @@ DSmoothRampSTF(t0::Real, tshift::Real=-3*t0) = SmoothRampSTF(Float64(t0), Float6
 (stf::DSmoothRampSTF)(t::Real) = 1 / cosh((t - stf.tshift) / stf.t0)^2
 
 # = = = = = = = = = = =
-mutable struct ExtraSTF <: SourceTimeFunction
+mutable struct ExternalSTF <: SourceTimeFunction
     dt::Float64
     sample::Vector{Float64}
     splineCoef::Matrix{Float64}
 end
 
-function ExtraSTF(dt::Real, sample::AbstractVector{<:Real})
+function ExternalSTF(dt::Real, sample::AbstractVector{<:Real})
     N = length(sample)-1
     M = zeros(4*N, 4*N)
     b = zeros(4*N)
@@ -83,10 +85,10 @@ function ExtraSTF(dt::Real, sample::AbstractVector{<:Real})
     end
     a = M\b
     mat = reshape(a, 4, N)
-    return ExtraSTF(Float64(dt), Float64.(sample), mat)
+    return ExternalSTF(Float64(dt), Float64.(sample), mat)
 end
 
-function (stf::ExtraSTF)(t::Real)
+function (stf::ExternalSTF)(t::Real)
     nf = t/stf.dt
     x = nf / size(stf.splineCoef, 2)
     n = floor(Int, nf) + 1

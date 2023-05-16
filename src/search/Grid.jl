@@ -1,4 +1,4 @@
-
+export Gridsearch, VSGridsearch
 function _m_range(start::Real, step::Real, stop::Real)
     n = ceil(Int, abs((stop-start)/step)) + 1
     v = zeros(n)
@@ -60,13 +60,13 @@ function (s::Gridsearch)()
     return (sdr, true)
 end
 
-mutable struct VSGrid <: SearchingMethod
+mutable struct VSGridsearch <: SearchingMethod
     overlapratio::Vector{Float64}
     steps::Matrix{Float64}
     ilevel::Int
 end
 
-function VSGrid(nlevel::Int, overlapratio::AbstractVector{<:Real}, finalstep::AbstractVector{<:Real})
+function VSGridsearch(nlevel::Int, overlapratio::AbstractVector{<:Real}, finalstep::AbstractVector{<:Real})
     @must length(finalstep) == 3
     @must nlevel > 0
     nsample = ceil.([360.0, 90.0, 180.0]./finalstep).+1
@@ -76,18 +76,18 @@ function VSGrid(nlevel::Int, overlapratio::AbstractVector{<:Real}, finalstep::Ab
     for i = 1:nlevel, j = 1:3
         m[i, j] = round(Int, q[j]^(nlevel-i))*finalstep[j]
     end
-    return VSGrid(overlapratio, m, 1)
+    return VSGridsearch(overlapratio, m, 1)
 end
 
-VSGrid(nlevel::Int, oratio::Real, finalstep::AbstractVector{<:Real}=ones(3)) = 
-    VSGrid(nlevel, ones(3).*oratio, finalstep)
+VSGridsearch(nlevel::Int, oratio::Real, finalstep::AbstractVector{<:Real}=ones(3)) = 
+    VSGridsearch(nlevel, ones(3).*oratio, finalstep)
 
-function reset_level!(g::VSGrid)
+function reset_level!(g::VSGridsearch)
     g.ilevel = 1
     return nothing
 end
 
-function (g::VSGrid)(strike::Real=0, dip::Real=0, rake::Real=0)
+function (g::VSGridsearch)(strike::Real=0, dip::Real=0, rake::Real=0)
     if g.ilevel == 1
         _g = Gridsearch(0.0, g.steps[1, 1], 360.0, 0.0, g.steps[1, 2], 90.0,
             -90.0, g.steps[1, 3], 90.0)

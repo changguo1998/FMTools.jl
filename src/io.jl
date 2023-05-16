@@ -2,6 +2,8 @@
 # = Record
 # = = = = = = = = = =
 
+export readStationChannelInfo, readChannelRecords!
+
 """
 ```
 Event(filepath) -> Event

@@ -1,4 +1,6 @@
-mutable struct L2norm_misfit <: PreprocessedData
+export L2norm_misfit
+
+mutable struct L2norm_misfit <: Object
     idphase::Int
     dt::_TimePrecision
     maxlag::_TimePrecision
