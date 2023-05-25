@@ -1,7 +1,8 @@
 import Base: +, -, *, /, promote_rule
 
-export settimeprecision!, _Second, setlengthprecision!, Direction3D, incaz, 
-    Length, Kilometer, Meter, Millimeter, Micrometer, _Kilometer, _Meter
+export settimeprecision!, _Second, LongAgo, Direction3D, incaz, 
+    setlengthprecision!, Length, Kilometer, Meter, Millimeter, 
+    Micrometer, _Kilometer, _Meter
 # * global variable
 _TimePrecision = Millisecond
 _TimeSecondRatio = _TimePrecision(Second(1))/_TimePrecision(1)
@@ -13,7 +14,7 @@ function settimeprecision!(T::Type)
     return nothing
 end
 
-_LongAgo = DateTime(1800)
+LongAgo = DateTime(1800)
 
 _Second(x::Real) = _TimePrecision(round(Int, x * _TimeSecondRatio))
 
@@ -165,9 +166,11 @@ include("search/searchingMethod.jl")
 # = types of input data
 # = = = = = = = = = = = = = = =
 export PreprocessedData, AlgorithmSetting, DataCollection,
-    Event, Station, RecordChannel, Phase
+    Event, Station, RecordChannel, Phase, Object
 
 abstract type PreprocessedData <: Any end
+
+abstract type Object <: PreprocessedData end
 
 """
 ```
@@ -189,13 +192,13 @@ mutable struct Phase <: PreprocessedData
     at::DateTime
     tt::TimePeriod
     # - cross ref
-    idobjects::Vector{Int}
+    idobject::Vector{Int}
     idchannel::Int
 end
 
 """
 ```
-Phase(ptype, at, tt; idobjects, idchannel, idstation) -> Phase
+Phase(ptype, at, tt; idobject, idchannel, idstation) -> Phase
 ```
 
 construct Phase type
@@ -203,12 +206,12 @@ construct Phase type
 - at DateTime
 - tt TimePeriod or Real. when tt is Real, it will be treated as second
 """
-function Phase(ptype::AbstractString, at::DateTime=_LongAgo, tt::Union{TimePeriod,Real}=_TimePrecision(0);
-    idobjects::AbstractVector{<:Integer}=Int[], idchannel::Integer=0)
+function Phase(ptype::AbstractString, at::DateTime=LongAgo, tt::Union{TimePeriod,Real}=_TimePrecision(0);
+    idobject::AbstractVector{<:Integer}=Int[], idchannel::Integer=0)
     if typeof(tt) <: Real
         tt = _Second(tt)
     end
-    return Phase(String(ptype), at, tt, Int.(idobjects), Int(idchannel))
+    return Phase(String(ptype), at, tt, Int.(idobject), Int(idchannel))
 end
 
 """
@@ -262,13 +265,13 @@ end
 """
 ```
 RecordChannel(dircname, filepath; direction, rbt, ret, rdt, record, glibmodel, 
-    glibpath, tlibpath, gbt, gdt, greenfun, idphase, idstation) -> RecordChannel
+    glibpath, tlibpath, gdt, greenfun, idphase, idstation) -> RecordChannel
 ```
 """
 function RecordChannel(dircname::Union{AbstractString,AbstractChar},
     filepath::AbstractString;
     direction::Union{Direction3D,Nothing}=nothing,
-    rbt::DateTime=_LongAgo, ret::DateTime=_LongAgo,
+    rbt::DateTime=LongAgo, ret::DateTime=LongAgo,
     rdt::Union{TimePeriod,Real}=_TimePrecision(0),
     record::AbstractVector{<:Real}=Float64[],
     glibmodel::AbstractString="", glibpath::AbstractString="",
@@ -287,16 +290,13 @@ function RecordChannel(dircname::Union{AbstractString,AbstractChar},
     if typeof(rdt) <: Real
         rdt = _Second(rdt)
     end
-    if typeof(gbt) <: Real
-        gbt = _Second(gbt)
-    end
     if typeof(gdt) <: Real
         gdt = _Second(gdt)
     end
-    return RecordChannel(String(dircname), String(filepath),
-        direction, rbt, ret, rdt, Float64.(record), String(glibmodel), 
-        String(glibpath), String(tlibpath),
-        gbt, gdt, Float64.(greenfun), Int.(idphase), Int(idstation))
+    return RecordChannel(String(dircname), String(filepath), direction, 
+        rbt, ret, rdt, Float64.(record), String(glibmodel), 
+        String(glibpath), String(tlibpath), gdt, Float64.(greenfun),
+        Int.(idphase), Int(idstation))
 end
 
 """
@@ -405,7 +405,7 @@ mutable struct DataCollection <: PreprocessedData
     stations::Vector{Station}
     channels::Vector{RecordChannel}
     phases::Vector{Phase}
-    objects::Vector{PreprocessedData}
+    objects::Vector{Object}
 end
 
 struct AlgorithmSetting <: PreprocessedData
@@ -416,11 +416,15 @@ function AlgorithmSetting(; greenbuffer::Bool=true)
     return AlgorithmSetting(greenbuffer)
 end
 
+include("misfit/misfits.jl")
+
 
 # = = = = = = = = = = = = =
 # = = = = = = = = = = = = =
 # = = = = = = = = = = = = =
 # = = = = = = = = = = = = =
+
+export pushphase!, selectdatacollection
 
 """
 ```
@@ -436,41 +440,109 @@ function pushphase!(channels::Vector{RecordChannel}, ichannel::Integer,
     return nothing
 end
 
-
-"""
-```
-selectphase!(channels, phases, selectflag::Vector{Bool}) -> newphases
-```
-
-select `phases` and update id in `channels` according to `selectflag`
-"""
-function selectphase!(channels::Vector{RecordChannel}, phases::Vector{Phase},
-    selectflag::Vector{Bool})
-    @must length(phases) == length(selectflag)
-    newphases = phases[selectflag]
-    idtable_old2new = zeros(Int, length(phases))
-    for i = eachindex(phases), j = eachindex(newphases)
-        if phases[i] == newphases[j]
-            idtable_old2new[i] = j
+_typelist = (:Station, :RecordChannel, :Phase, :Object)
+_fldnames = (:idstation, :idchannel, :idphase, :idobject)
+for _i = eachindex(_typelist)
+    if _i == 1
+        continue
+    end
+    @eval function _downward_relation!(f2::AbstractVector{Bool},
+        dat::Vector{$(_typelist[_i-1])}, f1::AbstractVector{Bool})
+        for i = eachindex(dat)
+            if f1[i]
+                for j = getfield(dat[i], _fldnames[$(_i)])
+                    f2[j] = true
+                end
+            end
         end
+        return nothing
     end
-    for c = channels
-        c.idphase = idtable_old2new[c.idphase]
-        deleteat!(c.idphase, iszero.(c.idphase))
-    end
-    return newphases
 end
 
-"""
-```
-selectphase!(f, channels, phases) -> newphases
-```
+for _i = eachindex(_typelist)
+    if _i == 1
+        continue
+    end
+    @eval function _upward_relation!(f2::AbstractVector{Bool},
+        dat::Vector{$(_typelist[_i])}, f1::AbstractVector{Bool})
+        for i = eachindex(dat)
+            if f1[i]
+                j = getfield(dat[i], _fldnames[$(_i-1)])
+                f2[j] = true
+            end
+        end
+        return nothing
+    end
+end
 
-select `phases` and update id in `channels` according to function `f`,
-function `f` take `Phase` as input and return `Bool` type
-"""
-function selectphase!(f::Function, channels::Vector{RecordChannel},
-    phases::Vector{Phase})
-    flag = map(f, phases)
-    return selectphase!(channels, phases, flag)
+function _new_id(fv::AbstractVector{Bool})
+    id = zeros(Int, length(fv))
+    n = 1
+    for i = eachindex(fv)
+        if fv[i]
+            id[i] = n
+            n += 1
+        end
+    end
+    return id
+end
+
+function selectdatacollection(stations::Vector{Station}, fsta::AbstractVector{Bool},
+    channels::Vector{RecordChannel}, fcha::AbstractVector{Bool},
+    phases::Vector{Phase}, fpha::AbstractVector{Bool},
+    objects::Vector{Object}, fobj::AbstractVector{Bool})
+    new_staid = _new_id(fsta)
+    new_chaid = _new_id(fcha)
+    new_phaid = _new_id(fpha)
+    new_objid = _new_id(fobj)
+    new_stations = Vector{Station}(undef, count(>(0), fsta))
+    new_channels = Vector{RecordChannel}(undef, count(>(0), fcha))
+    new_phases = Vector{Phase}(undef, count(>(0), fpha))
+    new_objects = Vector{Object}(undef, count(>(0), fobj))
+    for i = eachindex(fsta)
+        if fsta[i]
+            tsta = deepcopy(stations[i])
+            tsta.idchannel = Int[]
+            for j = stations[i].idchannel
+                if new_chaid[j] > 0
+                    push!(tsta.idchannel, new_chaid[j])
+                end
+            end
+            new_stations[new_staid[i]] = tsta
+        end
+    end
+    for i = eachindex(fcha)
+        if fcha[i]
+            tcha = deepcopy(channels[i])
+            tcha.idstation = new_staid[channels[i].idstation]
+            tcha.idphase = Int[]
+            for j = channels[i].idphase
+                if new_phaid[j] > 0
+                    push!(tcha.idphase, new_phaid[j])
+                end
+            end
+            new_channels[new_chaid[i]] = tcha
+        end
+    end
+    for i = eachindex(fpha)
+        if fpha[i]
+            tpha = deepcopy(phases[i])
+            tpha.idchannel = new_chaid[phases[i].idchannel]
+            tpha.idobject = Int[]
+            for j = phases[i].idobject
+                if new_objid[j] > 0
+                    push!(tcha.idphase, new_objid[j])
+                end
+            end
+            new_phases[new_phaid[i]] = tpha
+        end
+    end
+    for i = eachindex(fobj)
+        if fobj[i]
+            tobj = deepcopy(objects[i])
+            tobj.idphase = new_phaid[objects[i].idphase]
+            new_objects[new_objid[i]] = tobj
+        end
+    end
+    return (new_stations, new_channels, new_phases, new_objects)
 end

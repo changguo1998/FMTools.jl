@@ -9,7 +9,7 @@ export readStationChannelInfo, readChannelRecords!
 Event(filepath) -> Event
 ```
 
-read *TOML* format event info. Available fields are:
+read `TOML` format event info. Available fields are:
 
 - time/origintime
 - lon/longitude
@@ -21,7 +21,7 @@ read *TOML* format event info. Available fields are:
 """
 function Event(filepath::AbstractString)
     t = TOML.parsefile(filepath)
-    e = Event(_LongAgo, 0.0, 0.0, _LengthPrecision(0))
+    e = Event(LongAgo, 0.0, 0.0, _LengthPrecision(0))
     ks = keys(t)
     klist = ("time", "origintime", "lat", "latitude", "lon", "longitude", 
         "dep", "depth", "mag", "magnitude", "t0", "risetime", "tag")
@@ -83,10 +83,10 @@ function _read_channel_record!(c::RecordChannel)
     sf = SSAC.read(c.filepath)
     rt = SSAC.DateTime(sf.hdr)
     bt = rt + _Second(sf.hdr["b"])
-    if c.rbt == _LongAgo
+    if c.rbt == LongAgo
         c.rbt = bt
     end
-    if c.ret == _LongAgo
+    if c.ret == LongAgo
         c.ret = bt + _Second(sf.hdr["delta"]*sf.hdr["npts"])
     end
     c.rdt = _Second(sf.hdr["delta"])
@@ -109,3 +109,4 @@ readChannelRecords!(channels::Vector{RecordChannel}) =
 # = = = = = = = = = =
 # = Green's function
 # = = = = = = = = = =
+include("greenlibio.jl")

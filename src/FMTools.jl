@@ -1,6 +1,6 @@
-module JSM2
+module FMTools
 
-using Dates, DelimitedFiles, LinearAlgebra, Printf, SeisTools, Statistics, TOML, SHA, Mmap
+using Dates, DelimitedFiles, LinearAlgebra, Printf, SeisTools, Statistics, TOML, SHA
 
 SSAC = SeisTools.SAC
 SDP = SeisTools.DataProcess
@@ -12,8 +12,6 @@ SGD = SeisTools.Geodesy
 include("macros.jl")
 include("sourcetimefunction.jl")
 include("types.jl")
-include("greenlibio.jl")
-include("misfit/misfits.jl")
 include("phasereport.jl")
 include("io.jl")
 include("calc.jl")
