@@ -1,7 +1,7 @@
 import Base: +, -, *, /, promote_rule
 
-export settimeprecision!, _Second, LongAgo, Direction3D, incaz, 
-    setlengthprecision!, Length, Kilometer, Meter, Millimeter, 
+export settimeprecision!, _Second, LongAgo, Direction3D, incaz,
+    setlengthprecision!, Length, Kilometer, Meter, Millimeter,
     Micrometer, _Kilometer, _Meter
 # * global variable
 _TimePrecision = Millisecond
@@ -110,53 +110,6 @@ function incaz(dirc::Direction3D)
     return (inc, az)
 end
 
-abstract type Length <: Any end
-
-_LENGTH_TYPE_LIST = (:Kilometer, :Meter, :Decimeter, :Centimeter, :Millimeter, :Micrometer, :Nanometer) 
-
-for sym in _LENGTH_TYPE_LIST
-    @eval struct $sym <: Length
-        value::Int
-    end
-    @eval begin
-        +(a::$sym, b::$sym) = $sym(a.value + b.value)
-        -(a::$sym, b::$sym) = $sym(a.value - b.value)
-        *(a::$sym, b::Integer) = $sym(a.value * b)
-        *(a::Integer, b::$sym) = $sym(b.value * a)
-        /(a::$sym, b::$sym) = a.value / b.value
-    end
-end
-
-_LENGTH_UNIT_POWER = (3, 0, -1, -2, -3, -6, -9)
-
-for i = eachindex(_LENGTH_TYPE_LIST), j = eachindex(_LENGTH_TYPE_LIST)
-    if j >= i
-        continue
-    end
-    @eval begin
-        promote_rule(::Type{$(_LENGTH_TYPE_LIST[i])}, ::Type{$(_LENGTH_TYPE_LIST[j])}) = $(_LENGTH_TYPE_LIST[i])
-        promote_rule(::Type{$(_LENGTH_TYPE_LIST[j])}, ::Type{$(_LENGTH_TYPE_LIST[i])}) = $(_LENGTH_TYPE_LIST[i])
-        $(_LENGTH_TYPE_LIST[i])(t::$(_LENGTH_TYPE_LIST[j])) = 
-            $(_LENGTH_TYPE_LIST[i])(t.value*10^($(_LENGTH_UNIT_POWER[j]-_LENGTH_UNIT_POWER[i])))
-    end
-end
-
-_LengthPrecision = Millimeter
-_LengthKilometerRatio = _LengthPrecision(Kilometer(1))/_LengthPrecision(1)
-_LengthMeterRatio = _LengthPrecision(Meter(1))/_LengthPrecision(1)
-
-function setlengthprecision!(T::Type)
-    @must T <: Length
-    global _LengthPrecision = T
-    global _LengthKilometerRatio = _LengthPrecision(Kilometer(1))/_LengthPrecision(1)
-    global _LengthMeterRatio = _LengthPrecision(Meter(1))/_LengthPrecision(1)
-    return nothing
-end
-
-_Kilometer(x::Real) = _LengthPrecision(round(Int, x * _LengthKilometerRatio))
-
-_Meter(x::Real) = _LengthPrecision(round(Int, x * _LengthMeterRatio))
-
 # = = = = = = = = = = = = = = =
 # = Searching Method
 # = = = = = = = = = = = = = = =
@@ -264,7 +217,7 @@ end
 
 """
 ```
-RecordChannel(dircname, filepath; direction, rbt, ret, rdt, record, glibmodel, 
+RecordChannel(dircname, filepath; direction, rbt, ret, rdt, record, glibmodel,
     glibpath, tlibpath, gdt, greenfun, idphase, idstation) -> RecordChannel
 ```
 """
@@ -293,8 +246,8 @@ function RecordChannel(dircname::Union{AbstractString,AbstractChar},
     if typeof(gdt) <: Real
         gdt = _Second(gdt)
     end
-    return RecordChannel(String(dircname), String(filepath), direction, 
-        rbt, ret, rdt, Float64.(record), String(glibmodel), 
+    return RecordChannel(String(dircname), String(filepath), direction,
+        rbt, ret, rdt, Float64.(record), String(glibmodel),
         String(glibpath), String(tlibpath), gdt, Float64.(greenfun),
         Int.(idphase), Int(idstation))
 end
